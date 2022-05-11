@@ -1,0 +1,201 @@
+---
+title: "Homework_03"
+author: "Akshaya Mahesh"
+date: "10/21/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      cache = FALSE,
+                      fig.align = 'center',
+                      out.width = '70%',
+                      warning = FALSE,
+                      message = FALSE)
+```
+### Installing packages
+```{r eval=FALSE}
+install.packages(c( "plyr", "dbplyr","usmap"))
+```
+
+
+### Adding the necessary libraries
+```{r}
+library(plyr)
+library(tidyverse)
+library(ggplot2)
+library(readr)
+library(dplyr)
+library(usmap)
+```
+## Part 1
+### Importing files and combining them
+Dataset after binding rows
+```{r }
+files <- list.files(path = "C:\\Users\\maksh\\OneDrive\\Documents\\Datasets\\epa-aqi-data-annual\\epa-aqi-data-annual", pattern = "*.csv",
+                    full.names = T)
+data_all <- lapply(files, read.csv, header = TRUE, stringsAsFactors = FALSE)
+air_aqi <- bind_rows(data_all)
+head(air_aqi)
+```
+
+### Including plots to show Median AQI Values Vs Time
+```{r}
+
+ggplot(data=air_aqi,mapping = aes(y=Year,x=Median.AQI,group=Year))+geom_boxplot()+
+  labs(title="Improvement in Air Quality Index over the years 1980-2019 ",
+       x="Median AQI Values",y="Time in years")+theme_minimal()
+```
+Observation  for the above plot:  
+1.The above plot shows that Air Quality Index in the United States has improved over the 40 year period.  
+2.The range of spread of Median AQI values has decreased over the years.  
+3.There is a decrease in the number of outliers having higher Median AQI values and increase in the number of outliers having very lower median AQI values.  
+
+## Part 2
+creating a new variable 'decade'    
+```{r}
+air_aqi$decade <-ifelse(air_aqi$Year>=1980 & air_aqi$Year<1990,
+                        "1980-1989",
+                        ifelse(air_aqi$Year>=1990 & air_aqi$Year<2000,
+                        "1990-1999",
+                        ifelse(air_aqi$Year>=2000 & air_aqi$Year<2010,
+                        "2000-2009",
+                        ifelse(air_aqi$Year>=2010 & air_aqi$Year<2020,"2010-2019","0"))))
+head(air_aqi)
+
+``` 
+Selecting the State, Year,Decade and Median AQI columns for observation    
+```{r}
+air_aqi_decade<-air_aqi%>%select(c("State","Year","Median.AQI","decade"))
+head(air_aqi_decade)
+```
+
+### Including plots for the Average Median AQI values across the states for four decades(1980-2019)
+
+```{r message=FALSE}
+my_aqi<-ddply(air_aqi_decade, .(decade,State),summarise,
+              Average_MedianAQI=mean(`Median.AQI`,na.rm=TRUE))
+my_aqi$region <- tolower(my_aqi$State)
+head(my_aqi)
+```
+Using Fips to plot the data
+```{r}
+
+my_aqi$fips <- fips(my_aqi$region)
+
+plot_usmap(data =my_aqi, values = "Average_MedianAQI", labels=FALSE)+
+  scale_fill_viridis_c(option = "plasma")+theme(legend.position = "right")+
+  theme(panel.background = element_rect(colour = "black")) +
+  labs(title = "Decade wide Average AQI across the States")+
+  facet_wrap(~decade)
+  
+```
+
+Observation for the above plot:  
+1. Air Quality Index seems to have improved over the decades across the United States.     
+2. States such as Arizona, West Virginia and Pennsylvania show great improvement in Air Quality Index over the   period.    
+3. On the contrary, Air Quality index in North Dakota,South Dakota, Arkansas and Hawaii has increased over the decades.    
+4. Florida seems to have had a nearly constant Average AQI.    
+5. In 1980-1989 , the states appear to have a wide range of Air AQI(comprises of both lower and extreme values) whereas in 2010-2019, the states appear to have a uniform AQI in the range of 30-50 (exception being California and Arizona).    
+
+## Part 3
+Importing the country and world_4region file  
+```{r}
+dir1 <- "C:\\Users\\maksh\\OneDrive\\Documents\\Datasets"
+dir2 <- "ddf--gapminder--systema_globalis-master\\ddf--gapminder--systema_globalis-master"
+path <- file.path(dir1, dir2,"ddf--entities--geo--country.csv" )
+countries <- read_csv(path)
+head(countries)
+```
+
+```{r}
+path<-file.path(dir1, dir2, "ddf--entities--geo--world_4region.csv")
+world_region <- read_csv(path)
+
+head(world_region)
+```
+Using INNER JOIN to join the tables Countries and World_Region to get countries that have been assigned a world region  
+```{r}
+country_count<- inner_join(countries,world_region,by="world_4region")
+head(country_count)
+```
+### Including Plot to visualize the number of countries across regions
+```{r}
+ggplot(data=country_count,mapping=aes(x=name.y,fill=name_short))+geom_bar()+
+ labs(title="Total count of Countries in each World Region",x="Regions",
+      y="Count (in numbers)",fill="WorldRegions")+
+  geom_text(stat='count',aes(label=..count..),vjust=-0.2)+theme_minimal()
+```
+Observation of above plot:  
+Asia seems to have the highest number of countries and The Americas the least.  
+
+## Part 4
+Importing the infant mortality rate datapoints table  
+```{r}
+dir3 <- "ddf--gapminder--systema_globalis-master\\ddf--gapminder--systema_globalis-master\\countries-etc-datapoints"
+path<-file.path(dir1, dir3,"ddf--datapoints--infant_mortality_rate_per_1000_births--by--geo--time.csv")
+inf_mortality_rate <- read_csv(path,guess_max=1000)
+colnames(inf_mortality_rate)[colnames(inf_mortality_rate)=='geo']<-'country'
+head(inf_mortality_rate)
+```
+Using INNER JOIN to join the country_count and inf_mortality_rate tables to get region wise infant mortality data  
+```{r}
+inf_region<-inner_join(inf_mortality_rate,country_count,by="country")
+head(inf_region)
+```
+ 
+```{r}
+colnames(inf_region)[which(names(inf_region)=="name.y")]<-"Region"
+```
+### Including plots for region-wise infant mortality rates 
+```{r}
+ggplot(data=inf_region,mapping=aes(x=time, y=infant_mortality_rate_per_1000_births,alpha=2)) +
+     geom_point()+geom_smooth()+
+  theme_minimal()+
+labs(title = "Decrease in Infant mortality rates across the four regions",
+     x="Time in Years",y="Infant Mortality Rate",
+     subtitle="Region-wise Infant Mortality rates over two centuries")+
+  facet_wrap(~Region)
+
+```
+Observation of the above plot:  
+Overall infant mortality rate seems to have reduced over the given period across all the four regions.  
+
+Africa: This region has had Infant mortality rate of 200-250 and has now come down to 5-100(approx).This range seems to be quite high when compared to other regions.  
+
+Asia: This region seems to have had a nearly constant mortality rate for the period of 1850-1950 and then a slight increase during 1950s and then has started to reduce to 0-50(approx) at year 2000.  
+
+Europe :Data for infant mortality for the 1800-1850 is available only for Europe out of the four regions. This region has had a nearly constant infant mortality rate of 200(approx.) for the years(1800-1900)and then starts to reduce constantly and now it seems to be 0-20(approx).  
+
+The Americas: This region shows an increase in the rates for the period of 1850-1900 and the starts to decrease over the following years and at 2000, it seems to have an infant mortality rate of 0-50(approx.)  
+
+
+## Part 5
+Importing the life expectancy datapoints table  
+```{r}
+path<-file.path(dir1,dir3,"ddf--datapoints--life_expectancy_years--by--geo--time.csv")
+life_exp<-read_csv(path)
+colnames(life_exp)[colnames(life_exp)=='geo']<-'country'
+head(life_exp)
+```
+Using INNER JOIN to combine the life_exp and inf_region table to help visualize Life Expectancy Vs Infant Mortality Rate  
+```{r}
+life_exp_Inf_rate<-inner_join(life_exp,inf_region,by=c("country","time"))
+head(life_exp_Inf_rate)
+```
+
+```{r}
+ggplot(data=life_exp_Inf_rate,mapping=aes(x=infant_mortality_rate_per_1000_births
+                                          ,y=life_expectancy_years,alpha=2))+
+  geom_point()+geom_smooth()+facet_wrap(~life_exp_Inf_rate$Region)+
+  labs(title = "Plot to show relationship between Life Expectancy and 
+       Infant mortality rate for regions",x="Infant Mortality Rate"
+       ,y="Life Expectancy in Years",
+       subtitle="Life Expectancy and  Infant Mortality rate seem 
+       to vary negatively for all the regions")+
+  theme_minimal()+facet_wrap(~Region)
+```
+Observation for the above plot:  
+1.Life Expectancy and Infant Mortality rate seems to show negative correlation.  
+2.For a period where Infant mortality rate is between 0-200, the data points are widely distributed for Africa and Asia whereas, Europe and The Americas seem to have a much lesser range.  
+3.All the regions seem to have a life expectancy range of (30-80).  
